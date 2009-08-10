@@ -25,7 +25,7 @@ class RobustThread
         self.class.send :do_before_yield
         block.call(*targs)
         self.class.send :do_after_yield
-      rescue => e
+      rescue Exception => e
         @exception = e
         self.class.send :handle_exception, e
       end
