@@ -34,7 +34,7 @@ class RobustThread
     self.label = opts[:label] || @thread.inspect
     self.class.group << self
   end
-
+  
   ## Class methods and attributes
   class << self
     attr_accessor :logger, :say_goodnight, :exit_handler_initialized, :callbacks
@@ -99,6 +99,20 @@ class RobustThread
       self.callbacks[sym] << block
     end
 
+    # Join the group of threads handled by RobustThread.
+    # By default, join is automatically called when the mean thread exits.
+    def join
+      self.group.each do |rt|
+        log "waiting on #{rt.label.inspect}" if rt.thread.alive?
+        rt.thread.join unless rt.thread == Thread.current
+        rt.class.send :do_after_join
+      end
+      self.send :do_before_exit
+      log "exited cleanly"
+    rescue Interrupt
+      log "prematurely killed by interrupt!", :error
+    end
+
     private
     # Calls exception handler if set (see RobustThread.exception_handler)
     def handle_exception(exc)
@@ -116,17 +130,7 @@ class RobustThread
       self.say_goodnight = false
       at_exit do
         self.say_goodnight = true
-        begin
-          self.group.each do |rt|
-            log "waiting on #{rt.label.inspect}" if rt.thread.alive?
-            rt.thread.join
-            rt.class.send :do_after_join
-          end
-          self.send :do_before_exit
-          log "exited cleanly"
-        rescue Interrupt
-          log "prematurely killed by interrupt!", :error
-        end
+        join
       end
       self.exit_handler_initialized = true
     end
